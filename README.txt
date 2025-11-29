@@ -6,17 +6,7 @@ November/25/2025
 
 Purpose of the Code
 
-This project provides an ArcGIS Python Toolbox designed to integrate statistical CSV data with geographic boundary data stored in GeoJSON format.
-The toolbox performs three primary operations:
-
-Converts a GeoJSON file into an ArcGIS Feature Class, making the geographic boundaries directly usable in ArcGIS.
-
-Imports a CSV file as an ArcGIS table, enabling attribute-based operations.
-
-Joins the CSV table to the Feature Class using user-specified join fields from each dataset.
-
-After the join operation, the tool uses Matplotlib to generate a bar chart based on a numeric field selected from the CSV.
-The overall purpose is to combine spatial information with attribute information and to provide an additional statistical visualization of the data.
+This toolbox provides a simple workflow for joining Census CSV data with a GeoJSON file, converting the GeoJSON into a feature class, and visualizing numeric attributes through a basic matplotlib graph. It is designed to demonstrate file selection, workspace handling, field-based joining, and graphical output in ArcGIS Pro using a Python Toolbox.
 
 Data Accessed
 
@@ -46,16 +36,14 @@ Input CSV file
 
 Input GeoJSON file 
 
-Output workspace folder
+Select the Output workspace folder
 
-CSV join field name (NAME)
+Join field name (input: NAME)
 
-GeoJSON join field name (PctUnder5)
+Numeric field name for plotting (input: PctUnder5)
 
-Numeric field for plotting
+Select Graduated colors as the Display option  
 
-Output PNG path and naming the file
+naming the Output PNG file and its path 
 
-Execute the Tool
-
-Click Run.
+Run the Tool
