@@ -98,6 +98,7 @@ class CSVGeoJSONTool(object):
 
     def execute(self, parameters, messages):
 
+
         in_csv = parameters[0].valueAsText
         in_geojson = parameters[1].valueAsText
         out_workspace = parameters[2].valueAsText
@@ -106,6 +107,7 @@ class CSVGeoJSONTool(object):
         display_option = parameters[5].valueAsText
         out_png = parameters[6].valueAsText
 
+
         arcpy.env.workspace = out_workspace
         arcpy.env.overwriteOutput = True
 
@@ -113,29 +115,25 @@ class CSVGeoJSONTool(object):
         ws_type = ws_desc.workspaceType  
 
         geojson_name = os.path.splitext(os.path.basename(in_geojson))[0]
+        csv_name = os.path.splitext(os.path.basename(in_csv))[0]
 
         if ws_type == "FileSystem":
             fc_name = geojson_name + "_fc.shp"
+            csv_table = os.path.join(out_workspace, csv_name + "_tbl.dbf")
         else:
             fc_name = geojson_name + "_fc"
+            csv_table = os.path.join(out_workspace, csv_name + "_tbl")
 
         fc_path = os.path.join(out_workspace, fc_name)
 
         if arcpy.Exists(fc_path):
             arcpy.management.Delete(fc_path)
+        if arcpy.Exists(csv_table):
+            arcpy.management.Delete(csv_table)
+
 
         messages.addMessage("Converting GeoJSON to feature class...")
         arcpy.conversion.JSONToFeatures(in_geojson, fc_path)
-
-        csv_name = os.path.splitext(os.path.basename(in_csv))[0]
-
-        if ws_type == "FileSystem":
-            csv_table = os.path.join(out_workspace, csv_name + "_tbl.dbf")
-        else:
-            csv_table = os.path.join(out_workspace, csv_name + "_tbl")
-
-        if arcpy.Exists(csv_table):
-            arcpy.management.Delete(csv_table)
 
         messages.addMessage("Copying CSV to table...")
         arcpy.management.CopyRows(in_csv, csv_table)
@@ -151,28 +149,65 @@ class CSVGeoJSONTool(object):
 
         messages.addMessage("Reading data from CSV for plotting...")
 
-        with arcpy.da.SearchCursor(csv_table, [join_field, numeric_field]) as cursor:
-            for row in cursor:
-                if row[0] is None or row[1] is None:
-                    continue
-                raw_val = str(row[1])
-
-                clean_val = raw_val.replace("%", "").strip()
-                try:
-                    val_float = float(clean_val)
+        try:
+            with arcpy.da.SearchCursor(csv_table, [join_field, numeric_field]) as cursor:
+                for row in cursor:
+                    if row[0] is None or row[1] is None:
+                        continue
+                        
+                    raw_val = str(row[1])
+                    clean_val = raw_val.replace("%", "").strip()
                     
-                    x_list.append(str(row[0]))
-                    y_list.append(val_float)
-                except ValueError:
-                    messages.addWarning("IGNORED。".format(raw_val))
-                    continue
+                    try:
+                        val_float = float(clean_val)
+                        x_list.append(str(row[0]))
+                        y_list.append(val_float)
+                    except ValueError:
+                        messages.addWarning("Skipping value '{}' - unable to convert to float.".format(raw_val))
+                        continue
+        except Exception as e:
+            messages.addErrorMessage("Error reading data for plotting: " + str(e))
+            return
 
-        plt.figure(figsize=(10, 5))
+        if not x_list: 
+            messages.addWarning("No valid data found for plotting. Exiting tool.")
+            return
+
         max_n = min(20, len(x_list))
-        plt.bar(x_list[:max_n], y_list[:max_n])
+        plot_x = x_list[:max_n]
+        plot_y = y_list[:max_n]
+        
+        plt.figure(figsize=(10, 5))
+
+        if display_option == "Graduated colors":
+            messages.addMessage("Applying Graduated colors style to plot.")
+            
+            cmap = plt.cm.viridis 
+            if max(plot_y) == min(plot_y):
+                norm_y = [0.5] * len(plot_y) 
+            else:
+                norm = plt.Normalize(min(plot_y), max(plot_y))
+                norm_y = norm(plot_y)
+            bar_colors = cmap(norm_y)
+            
+            plt.bar(plot_x, plot_y, color=bar_colors) 
+
+        elif display_option == "Unique values":
+            messages.addMessage("Applying Unique values style (Categorical colors) to plot.")
+            
+            cmap_categorical = plt.cm.get_cmap('tab20')
+            bar_colors = [cmap_categorical(i % 20) for i in range(len(plot_x))] 
+            
+            plt.bar(plot_x, plot_y, color=bar_colors)
+            
+        else: 
+            messages.addMessage("Applying Single symbol style to plot.")
+            plt.bar(plot_x, plot_y, color='#0077B6')
+
         plt.xticks(rotation=90)
         plt.xlabel(join_field)
         plt.ylabel(numeric_field)
+        plt.title(f'{numeric_field} Distribution ({display_option})') 
         plt.tight_layout()
         plt.savefig(out_png, dpi=300)
         plt.close()
